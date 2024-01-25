@@ -60,14 +60,17 @@ func main() {
 		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
 		c.Header("Access-Control-Allow-Credentials", "true")
-
+	
 		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(200)
+			// Preflight request. Reply successfully:
+			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+			c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
+			c.JSON(http.StatusOK, gin.H{"message": "Preflight request successful"})
 			return
 		}
+	
 		c.Next()
 	})
-
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "index.html", nil)
 	})
