@@ -79,35 +79,37 @@ func main() {
 		host := c.PostForm("host")
 		user := c.PostForm("user")
 		userid := c.PostForm("id")
-		// userID := c.PostForm("userID")
 		privateKey, _, err := c.Request.FormFile("privateKey")
-
+	
 		if err != nil {
-			c.String(http.StatusBadRequest, "Error reading private key: %s", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Error reading private key: %s", err)})
 			return
 		}
-
+	
 		privateKeyBytes, err := ioutil.ReadAll(privateKey)
-
+	
 		if err != nil {
-			c.String(http.StatusInternalServerError, "Error reading private key: %s", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error reading private key: %s", err)})
 			return
 		}
-
+	
 		// Generate a random string of 8 characters
 		randomString := generateRandomString(8)
-
+	
 		mu.Lock()
 		users[user] = &User{
 			Host:       host,
 			User:       user,
 			PrivateKey: privateKeyBytes,
-			UserID:      userid,
+			UserID:     userid,
 		}
 		mu.Unlock()
-
-		c.String(http.StatusOK, "SSH details saved for user %s with ID %s", user, randomString)
+	
+		c.JSON(http.StatusOK, gin.H{
+			"message": fmt.Sprintf("SSH details saved for user %s with ID %s", user, randomString),
+		})
 	})
+	
 
 
 
