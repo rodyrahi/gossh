@@ -1,0 +1,24 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSH Web Interface</title>
+</head>
+<body>
+    <h1>SSH Web Interface</h1>
+    <form action="/connect" method="post" enctype="multipart/form-data">
+        <label for="host">Host:</label>
+        <input type="text" name="host" required><br>
+
+        <label for="user">User:</label>
+        <input type="text" name="user" required><br>
+
+        <label for="privateKey">Private Key:</label>
+        <input type="file" name="privateKey" accept=".pem" required><br>
+
+        <button type="submit">Connect</button>
+    </form>
+</body>
+</html>
