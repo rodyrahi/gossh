@@ -75,6 +75,7 @@ func main() {
 	r.POST("/connect", func(c *gin.Context) {
 		host := c.PostForm("host")
 		user := c.PostForm("user")
+		userid := c.PostForm("id")
 		// userID := c.PostForm("userID")
 		privateKey, _, err := c.Request.FormFile("privateKey")
 
@@ -98,7 +99,7 @@ func main() {
 			Host:       host,
 			User:       user,
 			PrivateKey: privateKeyBytes,
-			UserID:      randomString,
+			UserID:      userid,
 		}
 		mu.Unlock()
 
