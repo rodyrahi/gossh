@@ -6,16 +6,17 @@ import (
 	"log"
 	"net/http"
 	"sync"
-
+	"crypto/rand"
 	"golang.org/x/crypto/ssh"
 	"github.com/gin-gonic/gin"
-
+	"encoding/hex"
 )
 
 type User struct {
 	Host       string
 	User       string
 	PrivateKey []byte
+	UserID     string
 }
 
 type SSHConnection struct {
@@ -27,6 +28,26 @@ var users map[string]*User
 var sshConnections map[string]*SSHConnection
 var mu, muSSH sync.Mutex
 
+
+func generateRandomString(length int) string {
+	bytes := make([]byte, length)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(bytes)
+}
+
+
+func findUserByUserID(userID string) (*User, bool) {
+    for _, user := range users {
+        if user.UserID == userID {
+            return user, true
+        }
+    }
+
+    return nil, false
+}
 func main() {
 	users = make(map[string]*User)
 	sshConnections = make(map[string]*SSHConnection)
@@ -54,6 +75,7 @@ func main() {
 	r.POST("/connect", func(c *gin.Context) {
 		host := c.PostForm("host")
 		user := c.PostForm("user")
+		// userID := c.PostForm("userID")
 		privateKey, _, err := c.Request.FormFile("privateKey")
 
 		if err != nil {
@@ -68,23 +90,32 @@ func main() {
 			return
 		}
 
+		// Generate a random string of 8 characters
+		randomString := generateRandomString(8)
+
 		mu.Lock()
 		users[user] = &User{
 			Host:       host,
 			User:       user,
 			PrivateKey: privateKeyBytes,
+			UserID:      randomString,
 		}
 		mu.Unlock()
 
-		c.String(http.StatusOK, "SSH details saved for user %s", user)
+		c.String(http.StatusOK, "SSH details saved for user %s with ID %s", user, randomString)
 	})
+
+
 
 	r.GET("/connect/:user", func(c *gin.Context) {
 		user := c.Param("user")
-		u, ok := users[user]
+		
+		u, ok := findUserByUserID(user)
 
 		if !ok {
+			
 			c.String(http.StatusNotFound, "User not found")
+
 			return
 		}
 
@@ -123,7 +154,9 @@ func main() {
 
 	r.POST("/execute/:user", func(c *gin.Context) {
 		user := c.Param("user")
-		_, ok := users[user]
+		_, ok := findUserByUserID(user)
+
+		// _, ok := users[user]
 	
 		if !ok {
 			c.String(http.StatusNotFound, "User not found")
