@@ -106,7 +106,7 @@ func main() {
 		}
 		mu.Unlock()
 
-		c.String(http.StatusOK, "SSH details saved for user %s with ID %s", user, randomString)
+		c.String(http.StatusOK, "SSH details saved for user %s with ID %s", user, userid)
 	})
 
 
