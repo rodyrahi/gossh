@@ -95,7 +95,7 @@ func main() {
 		}
 
 		// Generate a random string of 8 characters
-		randomString := generateRandomString(8)
+		// randomString := generateRandomString(8)
 
 		mu.Lock()
 		users[user] = &User{
