@@ -215,7 +215,7 @@ func main() {
 		if ok {
 			c.JSON(http.StatusOK, gin.H{"exists": true})
 		} else {
-			c.JSON(http.StatusOK, gin.H{"exists": false})
+			c.JSON(http.StatusNotFound, gin.H{"exists": false})
 		}
 	})
 	
