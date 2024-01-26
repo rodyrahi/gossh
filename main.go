@@ -207,6 +207,19 @@ func main() {
 		c.String(http.StatusOK, "Command executed successfully")
 	})
 
+
+	r.GET("/user/:user", func(c *gin.Context) {
+		user := c.Param("user")
+		_, ok := findUserByUserID(user)
+	
+		if ok {
+			c.JSON(http.StatusOK, gin.H{"exists": true})
+		} else {
+			c.JSON(http.StatusOK, gin.H{"exists": false})
+		}
+	})
+	
+
 	if err := r.Run(":8181"); err != nil {
 		log.Fatal(err)
 	}
