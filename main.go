@@ -99,8 +99,6 @@ func main() {
 	})
 
 	r.POST("/connect", func(c *gin.Context) {
-		clientIP := c.ClientIP()
-
 		host := c.PostForm("host")
 		user := c.PostForm("user")
 		password := c.PostForm("password")
@@ -120,7 +118,7 @@ func main() {
 		}
 
 		mu.Lock()
-		users[clientIP] = &User{
+		users[userid] = &User{
 			Host:       host,
 			User:       user,
 			Password:   password,
@@ -135,13 +133,13 @@ func main() {
 			return
 		}
 
-		c.String(http.StatusOK, "SSH details saved for user with IP %s and ID %s", clientIP, userid)
+		c.String(http.StatusOK, "SSH details saved for user %s with ID %s", user, userid)
 	})
 
 	r.GET("/connect/:user", func(c *gin.Context) {
-		clientIP := c.Param("user")
+		user := c.Param("user")
 
-		u, ok := findUserByUserID(clientIP)
+		u, ok := findUserByUserID(user)
 
 		if !ok {
 			c.String(http.StatusNotFound, "User not found")
@@ -155,7 +153,7 @@ func main() {
 		}
 
 		muSSH.Lock()
-		_, ok = sshConnections[clientIP]
+		_, ok = sshConnections[user]
 		if !ok {
 			config := &ssh.ClientConfig{
 				User: u.User,
@@ -173,18 +171,18 @@ func main() {
 				return
 			}
 
-			sshConnections[clientIP] = &SSHConnection{
+			sshConnections[user] = &SSHConnection{
 				Client: client,
 			}
 		}
 		muSSH.Unlock()
 
-		c.String(http.StatusOK, "Connected to SSH server for user with IP %s", clientIP)
+		c.String(http.StatusOK, "Connected to SSH server for user %s", user)
 	})
 
 	r.POST("/execute/:user", func(c *gin.Context) {
-		clientIP := c.Param("user")
-		_, ok := findUserByUserID(clientIP)
+		user := c.Param("user")
+		_, ok := findUserByUserID(user)
 
 		if !ok {
 			c.String(http.StatusNotFound, "User not found")
@@ -192,11 +190,11 @@ func main() {
 		}
 
 		muSSH.Lock()
-		conn, ok := sshConnections[clientIP]
+		conn, ok := sshConnections[user]
 		muSSH.Unlock()
 
 		if !ok {
-			c.String(http.StatusInternalServerError, "SSH connection not found for user with IP %s", clientIP)
+			c.String(http.StatusInternalServerError, "SSH connection not found for user %s", user)
 			return
 		}
 
@@ -240,8 +238,8 @@ func main() {
 	})
 
 	r.GET("/user/:user", func(c *gin.Context) {
-		clientIP := c.Param("user")
-		_, ok := findUserByUserID(clientIP)
+		user := c.Param("user")
+		_, ok := findUserByUserID(user)
 
 		if ok {
 			c.JSON(http.StatusOK, gin.H{"exists": true})
@@ -249,8 +247,6 @@ func main() {
 			c.JSON(http.StatusNotFound, gin.H{"exists": false})
 		}
 	})
-
-	// ... (other routes or middleware can be added as needed)
 
 	if err := r.Run(":8181"); err != nil {
 		log.Fatal(err)
