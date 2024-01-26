@@ -194,7 +194,7 @@ func main() {
 
 		err := conn.Session.Start(command)
 		if err != nil {
-			c.String(http.StatusInternalServerError, "Error starting command: %s", err)
+			c.String(http.StatusOK, "Error starting command: %s", err)
 			return
 		}
 
