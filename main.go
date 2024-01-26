@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/hex"
+	// "encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -32,14 +32,14 @@ var mu, muSSH, muFile sync.Mutex
 
 const usersFileName = "users.json"
 
-func generateRandomString(length int) string {
-	bytes := make([]byte, length)
-	_, err := rand.Read(bytes)
-	if err != nil {
-		panic(err)
-	}
-	return hex.EncodeToString(bytes)
-}
+// func generateRandomString(length int) string {
+// 	bytes := make([]byte, length)
+// 	_, err := rand.Read(bytes)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	return hex.EncodeToString(bytes)
+// }
 
 func findUserByUserID(userID string) (*User, bool) {
 	for _, user := range users {
