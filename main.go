@@ -1,22 +1,21 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"sync"
-
-	"github.com/gin-gonic/gin"
+	"crypto/rand"
 	"golang.org/x/crypto/ssh"
+	"github.com/gin-gonic/gin"
+	"encoding/hex"
 )
 
 type User struct {
 	Host       string
 	User       string
-	Password   string
+	Password   string // New field for password
 	PrivateKey []byte
 	UserID     string
 }
@@ -40,10 +39,12 @@ func generateRandomString(length int) string {
 }
 
 func findUserByUserID(userID string) (*User, bool) {
-	mu.Lock()
-	defer mu.Unlock()
-	user, ok := users[userID]
-	return user, ok
+	for _, user := range users {
+		if user.UserID == userID {
+			return user, true
+		}
+	}
+	return nil, false
 }
 
 func main() {
@@ -53,21 +54,21 @@ func main() {
 	r := gin.Default()
 	r.LoadHTMLGlob("templates/*")
 
-	        r.Use(func(c *gin.Context) {
-                c.Header("Access-Control-Allow-Origin", "*")
-                c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-                c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
-                c.Header("Access-Control-Allow-Credentials", "true")
+	r.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
+		c.Header("Access-Control-Allow-Credentials", "true")
 
-                if c.Request.Method == "OPTIONS" {
-                        c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-                        c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
-                        c.JSON(http.StatusOK, gin.H{"message": "Preflight request successful"})
-                        return
-                }
+		if c.Request.Method == "OPTIONS" {
+			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+			c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
+			c.JSON(http.StatusOK, gin.H{"message": "Preflight request successful"})
+			return
+		}
 
-                c.Next()
-        })
+		c.Next()
+	})
 
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "index.html", nil)
@@ -77,7 +78,7 @@ func main() {
 		host := c.PostForm("host")
 		user := c.PostForm("user")
 		password := c.PostForm("password")
-		userID := generateRandomString(10)
+		userid := c.PostForm("id")
 		privateKey, _, err := c.Request.FormFile("privateKey")
 
 		if err != nil {
@@ -93,16 +94,16 @@ func main() {
 		}
 
 		mu.Lock()
-		users[userID] = &User{
+		users[user] = &User{
 			Host:       host,
 			User:       user,
 			Password:   password,
 			PrivateKey: privateKeyBytes,
-			UserID:     userID,
+			UserID:     userid,
 		}
 		mu.Unlock()
 
-		c.String(http.StatusOK, "SSH details saved for user %s with ID %s", user, userID)
+		c.String(http.StatusOK, "SSH details saved for user %s with ID %s", user, userid)
 	})
 
 	r.GET("/connect/:user", func(c *gin.Context) {
@@ -206,16 +207,18 @@ func main() {
 		c.String(http.StatusOK, "Command executed successfully")
 	})
 
+
 	r.GET("/user/:user", func(c *gin.Context) {
 		user := c.Param("user")
 		_, ok := findUserByUserID(user)
-
+	
 		if ok {
 			c.JSON(http.StatusOK, gin.H{"exists": true})
 		} else {
 			c.JSON(http.StatusNotFound, gin.H{"exists": false})
 		}
 	})
+	
 
 	if err := r.Run(":8181"); err != nil {
 		log.Fatal(err)
