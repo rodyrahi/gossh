@@ -15,6 +15,7 @@ import (
 type User struct {
 	Host       string
 	User       string
+	Password   string // New field for password
 	PrivateKey []byte
 	UserID     string
 }
@@ -28,7 +29,6 @@ var users map[string]*User
 var sshConnections map[string]*SSHConnection
 var mu, muSSH sync.Mutex
 
-
 func generateRandomString(length int) string {
 	bytes := make([]byte, length)
 	_, err := rand.Read(bytes)
@@ -38,16 +38,15 @@ func generateRandomString(length int) string {
 	return hex.EncodeToString(bytes)
 }
 
-
 func findUserByUserID(userID string) (*User, bool) {
-    for _, user := range users {
-        if user.UserID == userID {
-            return user, true
-        }
-    }
-
-    return nil, false
+	for _, user := range users {
+		if user.UserID == userID {
+			return user, true
+		}
+	}
+	return nil, false
 }
+
 func main() {
 	users = make(map[string]*User)
 	sshConnections = make(map[string]*SSHConnection)
@@ -60,17 +59,17 @@ func main() {
 		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
 		c.Header("Access-Control-Allow-Credentials", "true")
-	
+
 		if c.Request.Method == "OPTIONS" {
-			// Preflight request. Reply successfully:
 			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 			c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
 			c.JSON(http.StatusOK, gin.H{"message": "Preflight request successful"})
 			return
 		}
-	
+
 		c.Next()
 	})
+
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "index.html", nil)
 	})
@@ -78,8 +77,8 @@ func main() {
 	r.POST("/connect", func(c *gin.Context) {
 		host := c.PostForm("host")
 		user := c.PostForm("user")
+		password := c.PostForm("password")
 		userid := c.PostForm("id")
-		// userID := c.PostForm("userID")
 		privateKey, _, err := c.Request.FormFile("privateKey")
 
 		if err != nil {
@@ -94,32 +93,26 @@ func main() {
 			return
 		}
 
-		// Generate a random string of 8 characters
-		// randomString := generateRandomString(8)
-
 		mu.Lock()
 		users[user] = &User{
 			Host:       host,
 			User:       user,
+			Password:   password,
 			PrivateKey: privateKeyBytes,
-			UserID:      userid,
+			UserID:     userid,
 		}
 		mu.Unlock()
 
 		c.String(http.StatusOK, "SSH details saved for user %s with ID %s", user, userid)
 	})
 
-
-
 	r.GET("/connect/:user", func(c *gin.Context) {
 		user := c.Param("user")
-		
+
 		u, ok := findUserByUserID(user)
 
 		if !ok {
-			
 			c.String(http.StatusNotFound, "User not found")
-
 			return
 		}
 
@@ -135,6 +128,7 @@ func main() {
 			config := &ssh.ClientConfig{
 				User: u.User,
 				Auth: []ssh.AuthMethod{
+					ssh.Password(u.Password),
 					ssh.PublicKeys(signer),
 				},
 				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
@@ -160,22 +154,20 @@ func main() {
 		user := c.Param("user")
 		_, ok := findUserByUserID(user)
 
-		// _, ok := users[user]
-	
 		if !ok {
 			c.String(http.StatusNotFound, "User not found")
 			return
 		}
-	
+
 		muSSH.Lock()
 		conn, ok := sshConnections[user]
 		muSSH.Unlock()
-	
+
 		if !ok {
 			c.String(http.StatusInternalServerError, "SSH connection not found for user %s", user)
 			return
 		}
-	
+
 		if conn.Session == nil {
 			session, err := conn.Client.NewSession()
 			if err != nil {
@@ -184,38 +176,36 @@ func main() {
 			}
 			conn.Session = session
 		}
-	
+
 		defer func() {
 			muSSH.Lock()
 			defer muSSH.Unlock()
-			// Close the session after the command is executed
 			if conn.Session != nil {
 				conn.Session.Close()
 				conn.Session = nil
 			}
 		}()
-	
+
 		command := c.PostForm("command")
-	
+
 		conn.Session.Stdout = c.Writer
 		conn.Session.Stderr = c.Writer
 		conn.Session.Stdin = c.Request.Body
-	
+
 		err := conn.Session.Start(command)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "Error starting command: %s", err)
 			return
 		}
-	
+
 		err = conn.Session.Wait()
 		if err != nil {
 			c.String(http.StatusInternalServerError, "Error waiting for command to finish: %s", err)
 			return
 		}
-	
+
 		c.String(http.StatusOK, "Command executed successfully")
 	})
-	
 
 	if err := r.Run(":8181"); err != nil {
 		log.Fatal(err)
