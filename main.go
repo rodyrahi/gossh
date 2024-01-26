@@ -151,8 +151,8 @@ func main() {
 	})
 
 	r.POST("/execute/:user", func(c *gin.Context) {
-		user := c.Param("user")
-		_, ok := findUserByUserID(user)
+		userID := c.Param("user")
+		_, ok := findUserByUserID(userID)
 
 		if !ok {
 			c.String(http.StatusNotFound, "User not found")
@@ -160,11 +160,11 @@ func main() {
 		}
 
 		muSSH.Lock()
-		conn, ok := sshConnections[user]
+		conn, ok := sshConnections[userID]
 		muSSH.Unlock()
 
 		if !ok {
-			c.String(http.StatusInternalServerError, "SSH connection not found for user %s", user)
+			c.String(http.StatusInternalServerError, "SSH connection not found for user %s", userID)
 			return
 		}
 
@@ -188,26 +188,16 @@ func main() {
 
 		command := c.PostForm("command")
 
-		conn.Session.Stdout = c.Writer
-		conn.Session.Stderr = c.Writer
-		conn.Session.Stdin = c.Request.Body
-
-		err := conn.Session.Start(command)
+		// Capture the command output
+		output, err := conn.Session.CombinedOutput(command)
 		if err != nil {
-			c.String(http.StatusInternalServerError, "Error starting command: %s", err)
+			c.String(http.StatusInternalServerError, "Error running command: %s", err)
 			return
 		}
 
-		err = conn.Session.Wait()
-		if err != nil {
-			c.String(http.StatusInternalServerError, "Error waiting for command to finish: %s", err)
-			return
-		}
-
-		c.String(http.StatusOK, "Command executed successfully")
+		// Send the command output in the response
+		c.String(http.StatusOK, string(output))
 	})
-
-
 	r.GET("/user/:user", func(c *gin.Context) {
 		user := c.Param("user")
 		_, ok := findUserByUserID(user)
