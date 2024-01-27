@@ -234,7 +234,7 @@ func main() {
 			return
 		}
 
-		c.String(http.StatusOK, "Command executed successfully")
+		c.String(http.StatusOK)
 	})
 
 	r.GET("/user/:user", func(c *gin.Context) {
