@@ -141,8 +141,8 @@ func main() {
 
 		// Save users to the file after a successful SSH connection
 		mu.Lock()
-		users[userid].GID = gid
-		sshConnections[users[userid].GID] = &SSHConnection{
+		users[gid].GID = gid
+		sshConnections[users[gid].GID] = &SSHConnection{
 			Client: client,
 		}
 		mu.Unlock()
