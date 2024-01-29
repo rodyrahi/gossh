@@ -113,7 +113,7 @@ func main() {
 		}
 
 		mu.Lock()
-		users[userid] = &User{
+		users[gid] = &User{
 			Host:       host,
 			User:       user,
 			Password:   password,
