@@ -159,7 +159,7 @@ func main() {
 	r.GET("/connect/:user", func(c *gin.Context) {
 		user := c.Param("user")
 
-		u, ok := findUserByUserID(user)
+		u, ok := findUserByGID(user)
 
 		if !ok {
 			c.String(http.StatusNotFound, "User not found")
