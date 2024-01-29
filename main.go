@@ -259,7 +259,7 @@ func main() {
 
 	r.GET("/user/:user", func(c *gin.Context) {
 		user := c.Param("user")
-		_, ok := findUserByUserID(user)
+		_, ok := findUserByGID(user)
 
 		if ok {
 			c.JSON(http.StatusOK, gin.H{"exists": true})
