@@ -153,7 +153,7 @@ func main() {
 			return
 		}
 
-		c.String(http.StatusOK, "SSH details saved for user %s with GID %s", user, users[userid].GID)
+		c.String(http.StatusOK, "SSH details saved for user %s with GID %s", user, users[gid].GID)
 	})
 
 	r.GET("/connect/:user", func(c *gin.Context) {
@@ -202,7 +202,7 @@ func main() {
 
 	r.POST("/execute/:user", func(c *gin.Context) {
 		user := c.Param("user")
-		_, ok := findUserByUserID(user)
+		_, ok := findUserByGID(user)
 
 		if !ok {
 			c.String(http.StatusNotFound, "User not found")
