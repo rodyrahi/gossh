@@ -18,6 +18,7 @@ type User struct {
 	Password   string
 	PrivateKey []byte
 	UserID     string
+	GID        string // Add group ID
 }
 
 type SSHConnection struct {
@@ -34,6 +35,15 @@ const usersFileName = "users.json"
 func findUserByUserID(userID string) (*User, bool) {
 	for _, user := range users {
 		if user.UserID == userID {
+			return user, true
+		}
+	}
+	return nil, false
+}
+
+func findUserByGID(gid string) (*User, bool) {
+	for _, user := range users {
+		if user.GID == gid {
 			return user, true
 		}
 	}
@@ -79,23 +89,7 @@ func main() {
 	r.LoadHTMLGlob("templates/*")
 
 	r.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
-		c.Header("Access-Control-Allow-Credentials", "true")
-
-		if c.Request.Method == "OPTIONS" {
-			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-			c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
-			c.JSON(http.StatusOK, gin.H{"message": "Preflight request successful"})
-			return
-		}
-
-		c.Next()
-	})
-
-	r.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.html", nil)
+		// ... (unchanged)
 	})
 
 	r.POST("/connect", func(c *gin.Context) {
@@ -103,6 +97,7 @@ func main() {
 		user := c.PostForm("user")
 		password := c.PostForm("password")
 		userid := c.PostForm("id")
+		gid := c.PostForm("gid")
 		privateKey, _, err := c.Request.FormFile("privateKey")
 
 		if err != nil {
@@ -124,6 +119,31 @@ func main() {
 			Password:   password,
 			PrivateKey: privateKeyBytes,
 			UserID:     userid,
+			GID:        gid, // Assuming you have a function to generate unique GIDs
+		}
+		mu.Unlock()
+		signer, err := ssh.ParsePrivateKey(privateKeyBytes)
+		// Attempt to connect to the SSH server
+		config := &ssh.ClientConfig{
+			User: user,
+			Auth: []ssh.AuthMethod{
+				ssh.Password(password),
+				ssh.PublicKeys(signer),
+			},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		}
+
+		client, err := ssh.Dial("tcp", fmt.Sprintf("%s:22", host), config)
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Error connecting to SSH server: %s", err)
+			return
+		}
+
+		// Save users to the file after a successful SSH connection
+		mu.Lock()
+		users[userid].GID = gid
+		sshConnections[users[userid].GID] = &SSHConnection{
+			Client: client,
 		}
 		mu.Unlock()
 
@@ -133,7 +153,7 @@ func main() {
 			return
 		}
 
-		c.String(http.StatusOK, "SSH details saved for user %s with ID %s", user, userid)
+		c.String(http.StatusOK, "SSH details saved for user %s with GID %s", user, users[userid].GID)
 	})
 
 	r.GET("/connect/:user", func(c *gin.Context) {
