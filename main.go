@@ -128,10 +128,6 @@ func main() {
 
 		mu.Lock()
 		users[gid] = &User{
-			Host:       host,
-			User:       user,
-			Password:   password,
-			PrivateKey: privateKeyBytes,
 			UserID:     userid,
 			GID:        gid, // Assuming you have a function to generate unique GIDs
 		}
