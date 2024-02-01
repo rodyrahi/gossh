@@ -65,15 +65,24 @@ func readUsersFromFile() error {
 
 // Function to write users to the file
 func writeUsersToFile() error {
-	muFile.Lock()
-	defer muFile.Unlock()
+    muFile.Lock()
+    defer muFile.Unlock()
 
-	content, err := json.MarshalIndent(users, "", "  ")
-	if err != nil {
-		return err
-	}
+    // Create a simplified structure for writing
+    var simplifiedUsers = make(map[string]*User)
+    for gid, user := range users {
+        simplifiedUsers[gid] = &User{
+            UserID: user.UserID,
+            GID:    user.GID,
+        }
+    }
 
-	return ioutil.WriteFile(usersFileName, content, 0644)
+    content, err := json.MarshalIndent(simplifiedUsers, "", "  ")
+    if err != nil {
+        return err
+    }
+
+    return ioutil.WriteFile(usersFileName, content, 0644)
 }
 
 func main() {
