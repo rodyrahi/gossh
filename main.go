@@ -101,7 +101,7 @@ func main() {
 
 
 		 // Get the server's IP address
-		 serverIP := "127.0.0.1"  // Change this to the actual IP address of your server
+		 serverIP := "165.232.151.6"  // Change this to the actual IP address of your server
 
 		 // Get the client's IP address
 		 clientIP := c.ClientIP()
