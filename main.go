@@ -99,22 +99,22 @@ func main() {
 
 	r.Use(func(c *gin.Context) {
 
-		// Get the server's IP address
-		serverIP := "::1" // Change this to the actual IP address of your server
+		// // Get the server's IP address
+		// serverIP := "::1" // Change this to the actual IP address of your server
 
-		// Get the client's IP address
-		clientIP := c.ClientIP()
+		// // Get the client's IP address
+		// clientIP := c.ClientIP()
 
-		println(clientIP , serverIP)
+		// println(clientIP , serverIP)
 
-		// Check if the client's IP matches the server's IP
-		if clientIP != serverIP {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-			c.Abort()
-			return
-		}
+		// // Check if the client's IP matches the server's IP
+		// if clientIP != serverIP {
+		// 	c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		// 	c.Abort()
+		// 	return
+		// }
 
-		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Origin", "https://kadmin.online")
 		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
 		c.Header("Access-Control-Allow-Credentials", "true")
