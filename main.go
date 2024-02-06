@@ -65,24 +65,24 @@ func readUsersFromFile() error {
 
 // Function to write users to the file
 func writeUsersToFile() error {
-    muFile.Lock()
-    defer muFile.Unlock()
+	muFile.Lock()
+	defer muFile.Unlock()
 
-    // Create a simplified structure for writing
-    var simplifiedUsers = make(map[string]*User)
-    for gid, user := range users {
-        simplifiedUsers[gid] = &User{
-            UserID: user.UserID,
-            GID:    user.GID,
-        }
-    }
+	// Create a simplified structure for writing
+	var simplifiedUsers = make(map[string]*User)
+	for gid, user := range users {
+		simplifiedUsers[gid] = &User{
+			UserID: user.UserID,
+			GID:    user.GID,
+		}
+	}
 
-    content, err := json.MarshalIndent(simplifiedUsers, "", "  ")
-    if err != nil {
-        return err
-    }
+	content, err := json.MarshalIndent(simplifiedUsers, "", "  ")
+	if err != nil {
+		return err
+	}
 
-    return ioutil.WriteFile(usersFileName, content, 0644)
+	return ioutil.WriteFile(usersFileName, content, 0644)
 }
 
 func main() {
@@ -99,22 +99,20 @@ func main() {
 
 	r.Use(func(c *gin.Context) {
 
+		// Get the server's IP address
+		serverIP := "127.0.0.1" // Change this to the actual IP address of your server
 
-		 // Get the server's IP address
-		 serverIP := "165.232.151.6"  // Change this to the actual IP address of your server
+		// Get the client's IP address
+		clientIP := c.ClientIP()
 
-		 // Get the client's IP address
-		 clientIP := c.ClientIP()
+		println(clientIP , serverIP)
 
-		 println(clientIP)
-	 
-		 // Check if the client's IP matches the server's IP
-		 if clientIP != serverIP {
-			 c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-			 c.Abort()
-			 return
-		 }
-	 
+		// Check if the client's IP matches the server's IP
+		if clientIP != serverIP {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			c.Abort()
+			return
+		}
 
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
@@ -130,8 +128,6 @@ func main() {
 
 		c.Next()
 	})
-
-
 
 	r.POST("/connect", func(c *gin.Context) {
 		host := c.PostForm("host")
@@ -155,8 +151,8 @@ func main() {
 
 		mu.Lock()
 		users[gid] = &User{
-			UserID:     userid,
-			GID:        gid, // Assuming you have a function to generate unique GIDs
+			UserID: userid,
+			GID:    gid, // Assuming you have a function to generate unique GIDs
 		}
 		mu.Unlock()
 		signer, err := ssh.ParsePrivateKey(privateKeyBytes)
