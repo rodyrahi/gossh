@@ -105,6 +105,8 @@ func main() {
 
 		 // Get the client's IP address
 		 clientIP := c.ClientIP()
+
+		 println(clientIP)
 	 
 		 // Check if the client's IP matches the server's IP
 		 if clientIP != serverIP {
