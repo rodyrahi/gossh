@@ -290,16 +290,34 @@ func main() {
 		c.String(http.StatusOK, "")
 	})
 
+	// r.GET("/user/:user", func(c *gin.Context) {
+	// 	user := c.Param("user")
+	// 	_, ok := findUserByGID(user)
+
+	// 	if ok {
+	// 		c.JSON(http.StatusOK, gin.H{"exists": true})
+	// 	} else {
+	// 		c.JSON(http.StatusNotFound, gin.H{"exists": false})
+	// 	}
+	// })
+
+
+
 	r.GET("/user/:user", func(c *gin.Context) {
 		user := c.Param("user")
-		_, ok := findUserByGID(user)
-
-		if ok {
+	
+		muSSH.Lock()
+		defer muSSH.Unlock()
+	
+		conn, ok := sshConnections[user]
+		if ok && conn.Client != nil {
+			// The user is connected via SSH
 			c.JSON(http.StatusOK, gin.H{"exists": true})
 		} else {
 			c.JSON(http.StatusNotFound, gin.H{"exists": false})
 		}
 	})
+	
 
 	if err := r.Run(":8181"); err != nil {
 		log.Fatal(err)
