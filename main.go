@@ -335,40 +335,16 @@ func main() {
 
 		conn, ok := sshConnections[user]
 		if ok && conn.Client != nil {
-			// Now, let's retrieve user information from users.json
-			usersData, err := os.ReadFile("users.json")
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read users data"})
-				return
+			// Assuming you want to return some information about the user
+			userInfo := gin.H{
+				"username": user,
+				// Add other user-related information here
 			}
-
-			var users []User
-			err = json.Unmarshal(usersData, &users)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse users data" ,"users": usersData})
-				return
-			}
-
-			// Find the user in the users slice based on the username
-			var foundUser *User
-			for _, u := range users {
-				if u.User == user {
-					foundUser = &u
-					break
-				}
-			}
-
-			if foundUser != nil {
-				// Return the found user information
-				c.JSON(http.StatusOK, gin.H{"user": foundUser})
-			} else {
-				c.JSON(http.StatusNotFound, gin.H{"exists": false})
-			}
+			c.JSON(http.StatusOK, gin.H{"exists": true, "user": userInfo})
 		} else {
 			c.JSON(http.StatusNotFound, gin.H{"exists": false})
 		}
 	})
-
 
 
 	if err := r.Run(":8181"); err != nil {
