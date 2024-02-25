@@ -32,14 +32,6 @@ var mu, muSSH, muFile sync.Mutex
 
 const usersFileName = "users.json"
 
-// func findUserByUserID(userID string) (*User, bool) {
-// 	for _, user := range users {
-// 		if user.UserID == userID {
-// 			return user, true
-// 		}
-// 	}
-// 	return nil, false
-// }
 
 func findUserByGID(gid string) (*User, bool) {
 	for _, user := range users {
@@ -67,29 +59,29 @@ func readUsersFromFile() error {
 func writeUsersToFile() error {
 	muFile.Lock()
 	defer muFile.Unlock()
-
+ 
 	// Create a simplified structure for writing
 	var simplifiedUsers = make(map[string]*User)
 	for gid, user := range users {
-		simplifiedUsers[gid] = &User{
-			User:   user.Host,
-			UserID: user.UserID,
-			GID:    user.GID,
-		}
+	   simplifiedUsers[gid] = &User{
+		  User:   user.User,
+		  UserID: user.UserID,
+		  GID:    user.GID,
+	   }
 	}
-
+ 
 	content, err := json.MarshalIndent(simplifiedUsers, "", "  ")
 	if err != nil {
-		return err
+	   return err
 	}
-
+ 
 	err = ioutil.WriteFile(usersFileName, content, 0644)
 	if err != nil {
-		return err
+	   return err
 	}
-
+ 
 	return nil
-}
+ }
 
 func main() {
 	users = make(map[string]*User)
