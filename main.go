@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -95,8 +98,6 @@ func writeUsersToFile() error {
 
 	return nil
 }
-
-
 
 func main() {
 	users = make(map[string]*User)
@@ -387,8 +388,38 @@ func main() {
 			}
 		}
 	})
-	
-	if err := r.Run(":8181"); err != nil {
-		log.Fatal(err)
+
+	// Graceful shutdown
+	server := &http.Server{
+		Addr:    ":8181",
+		Handler: r,
 	}
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("ListenAndServe error: %s", err)
+		}
+	}()
+
+	// Graceful shutdown handling
+	quit := make(chan os.Signal)
+	signal.Notify(quit, os.Interrupt)
+	<-quit
+	log.Println("Server is shutting down...")
+
+	// Close the WebSocket connections and the SSH sessions
+	muSSH.Lock()
+	for _, conn := range sshConnections {
+		if conn.Session != nil {
+			conn.Session.Close()
+		}
+	}
+	muSSH.Unlock()
+
+	// Shutdown the HTTP server
+	if err := server.Shutdown(context.Background()); err != nil {
+		log.Fatalf("Server shutdown error: %s", err)
+	}
+
+	log.Println("Server has stopped.")
 }
