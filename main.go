@@ -73,10 +73,14 @@ func writeUsersToFile() error {
 	
 	
 		// Add the copied user to the simplifiedUsers map
+		
 		simplifiedUsers[gid] = copiedUser
 	}
 
- 
+	delete(simplifiedUsers , "Password")
+	delete(simplifiedUsers , "Host")
+	delete(simplifiedUsers , "PrivateKey")
+
 	content, err := json.MarshalIndent(simplifiedUsers, "", "  ")
 	if err != nil {
 	   return err
