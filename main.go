@@ -96,60 +96,6 @@ func writeUsersToFile() error {
 	return nil
 }
 
-func handleTerminalConnection(c *gin.Context) {
-    userID := c.Param("user")
-    _, ok := findUserByGID(userID)
-
-    if !ok {
-        c.String(http.StatusNotFound, "User not found")
-        return
-    }
-
-    muSSH.Lock()
-    conn, ok := sshConnections[userID]
-    muSSH.Unlock()
-
-    if !ok {
-        c.String(http.StatusInternalServerError, "SSH connection not found for user %s", userID)
-        return
-    }
-
-    ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-    if err != nil {
-        log.Println(err)
-        return
-    }
-    defer ws.Close()
-
-	go func() {
-		for {
-			messageType, p, err := ws.ReadMessage()
-			if err != nil {
-				return
-			}
-			if messageType == websocket.TextMessage {
-				if conn.Session != nil {
-					conn.Session.Stdout.Write(p)
-				} else {
-					log.Println("Session is nil.")
-				}
-			}
-		}
-	}()
-	
-
-    buf := make([]byte, 1024)
-    for {
-        n, err := conn.Session.Stdin.Read(buf)
-        if err != nil {
-            return
-        }
-        err = ws.WriteMessage(websocket.TextMessage, buf[:n])
-        if err != nil {
-            return
-        }
-    }
-}
 
 
 func main() {
@@ -377,7 +323,71 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"data": userData})
 	})
 
-	r.GET("/terminal/:user", handleTerminalConnection)
+	r.GET("/terminal/:user", func(c *gin.Context) {
+		userID := c.Param("user")
+		_, ok := findUserByGID(userID)
+	
+		if !ok {
+			c.String(http.StatusNotFound, "User not found")
+			return
+		}
+	
+		muSSH.Lock()
+		conn, ok := sshConnections[userID]
+		muSSH.Unlock()
+	
+		if !ok {
+			c.String(http.StatusInternalServerError, "SSH connection not found for user %s", userID)
+			return
+		}
+	
+		if conn.Session == nil {
+			c.String(http.StatusInternalServerError, "SSH session not established for user %s", userID)
+			return
+		}
+	
+		ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		defer ws.Close()
+	
+		// WebSocket to SSH
+		go func() {
+			defer ws.Close()
+			for {
+				messageType, p, err := ws.ReadMessage()
+				if err != nil {
+					log.Println(err)
+					return
+				}
+				if messageType == websocket.TextMessage {
+					if conn.Session != nil {
+						conn.Session.Stdout.Write(p)
+					} else {
+						log.Println("Session is nil.")
+					}
+				}
+			}
+		}()
+	
+		// SSH to WebSocket
+		buf := make([]byte, 1024)
+		for {
+			n, err := conn.Session.Stdin.Read(buf)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			err = ws.WriteMessage(websocket.TextMessage, buf[:n])
+			if err != nil {
+				log.Println(err)
+				return
+			}
+		}
+	})
+	
 
 	if err := r.Run(":8181"); err != nil {
 		log.Fatal(err)
