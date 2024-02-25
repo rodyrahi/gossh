@@ -347,7 +347,7 @@ func main() {
 		
 		userData, ok := data[user]
 		if !ok {
-			c.JSON(http.StatusNotFound, gin.H{"error": "User not found", "data": data})
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 			return
 		}
 
