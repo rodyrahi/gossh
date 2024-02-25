@@ -62,13 +62,20 @@ func writeUsersToFile() error {
  
 	// Create a simplified structure for writing
 	var simplifiedUsers = make(map[string]*User)
+
 	for gid, user := range users {
-	   simplifiedUsers[gid] = &User{
-		  User:   user.User,
-		  UserID: user.UserID,
-		  GID:    user.GID,
-	   }
+		// Create a copy of the User object
+		copiedUser := &User{
+			User:   user.User,
+			UserID: user.UserID,
+			GID:    user.GID,
+		}
+	
+	
+		// Add the copied user to the simplifiedUsers map
+		simplifiedUsers[gid] = copiedUser
 	}
+
  
 	content, err := json.MarshalIndent(simplifiedUsers, "", "  ")
 	if err != nil {
