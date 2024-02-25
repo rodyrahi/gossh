@@ -338,18 +338,19 @@ func main() {
 		}
 
 		// Unmarshal the JSON content into a variable named data
-		var data interface{}
+		var data map[string]interface{}
 		if err := json.Unmarshal(plan, &data); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error unmarshalling JSON"})
 			return
 		}
 
-		// Assuming that data is a map[string]interface{}, you can access values like this:
-		userData, ok := data.(map[string]interface{})[user].(string)
+		
+		userData, ok := data[user]
 		if !ok {
-			c.JSON(http.StatusNotFound, gin.H{"error": "User not found" , "data":data})
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found", "data": data})
 			return
 		}
+
 
 		// Send the user data as a response
 		c.JSON(http.StatusOK, gin.H{"user": user, "data": userData})
