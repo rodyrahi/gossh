@@ -353,7 +353,7 @@ func main() {
 
 
 		// Send the user data as a response
-		c.JSON(http.StatusOK, gin.H{"user": user, "data": userData})
+		c.JSON(http.StatusOK, gin.H{"data": userData})
 	})
 
 
