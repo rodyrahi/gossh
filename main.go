@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -335,7 +336,7 @@ func main() {
 		conn, ok := sshConnections[user]
 		if ok && conn.Client != nil {
 			// Now, let's retrieve user information from users.json
-			usersData, err := ioutil.ReadFile("users.json")
+			usersData, err := os.ReadFile("users.json")
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read users data"})
 				return
