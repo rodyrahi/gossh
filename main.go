@@ -157,6 +157,7 @@ func main() {
 
 		mu.Lock()
 		users[gid] = &User{
+			User: user,
 			UserID: userid,
 			GID:    gid, // Assuming you have a function to generate unique GIDs
 		}
