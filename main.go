@@ -348,6 +348,8 @@ func main() {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse users data"})
 				return
 			}
+
+			fmt.Println(string(usersData))
 	
 			// Find the user in the users slice based on the userID
 			var foundUser User
