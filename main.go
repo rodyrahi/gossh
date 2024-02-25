@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -26,9 +27,16 @@ type SSHConnection struct {
 	Session *ssh.Session
 }
 
-var users map[string]*User
-var sshConnections map[string]*SSHConnection
-var mu, muSSH, muFile sync.Mutex
+var (
+	users           map[string]*User
+	sshConnections  map[string]*SSHConnection
+	mu, muSSH, muFile sync.Mutex
+	upgrader        = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+)
 
 const usersFileName = "users.json"
 
@@ -41,7 +49,6 @@ func findUserByGID(gid string) (*User, bool) {
 	return nil, false
 }
 
-// Function to read users from the file
 func readUsersFromFile() error {
 	muFile.Lock()
 	defer muFile.Unlock()
@@ -54,29 +61,24 @@ func readUsersFromFile() error {
 	return json.Unmarshal(content, &users)
 }
 
-// Function to write users to the file
 func writeUsersToFile() error {
 	muFile.Lock()
 	defer muFile.Unlock()
 
-	// Create a simplified structure for writing
-
 	type simpleUser struct {
 		User   string
 		UserID string
-		GID    string // Add group ID
+		GID    string
 	}
 
 	var simplifiedUsers = make(map[string]*simpleUser)
 
 	for gid, user := range users {
-		// Create a copy of the User object
 		copiedUser := &simpleUser{
 			User:   user.User,
 			UserID: user.UserID,
 			GID:    user.GID,
 		}
-		// Add the copied user to the simplifiedUsers map
 
 		simplifiedUsers[gid] = copiedUser
 	}
@@ -94,11 +96,60 @@ func writeUsersToFile() error {
 	return nil
 }
 
+func handleTerminalConnection(c *gin.Context) {
+	userID := c.Param("user")
+	_, ok := findUserByGID(userID)
+
+	if !ok {
+		c.String(http.StatusNotFound, "User not found")
+		return
+	}
+
+	muSSH.Lock()
+	conn, ok := sshConnections[userID]
+	muSSH.Unlock()
+
+	if !ok {
+		c.String(http.StatusInternalServerError, "SSH connection not found for user %s", userID)
+		return
+	}
+
+	ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer ws.Close()
+
+	go func() {
+		for {
+			messageType, p, err := ws.ReadMessage()
+			if err != nil {
+				return
+			}
+			if messageType == websocket.TextMessage {
+				conn.Session.Stdout.Write(p)
+			}
+		}
+	}()
+
+	buf := make([]byte, 1024)
+	for {
+		n, err := conn.Session.Stdin.Read(buf)
+		if err != nil {
+			return
+		}
+		err = ws.WriteMessage(websocket.TextMessage, buf[:n])
+		if err != nil {
+			return
+		}
+	}
+}
+
 func main() {
 	users = make(map[string]*User)
 	sshConnections = make(map[string]*SSHConnection)
 
-	// Load existing users from the file
 	if err := readUsersFromFile(); err != nil {
 		log.Fatalf("Error reading users from file: %s", err)
 	}
@@ -107,22 +158,6 @@ func main() {
 	r.LoadHTMLGlob("templates/*")
 
 	r.Use(func(c *gin.Context) {
-
-		// // Get the server's IP address
-		// serverIP := "::1" // Change this to the actual IP address of your server
-
-		// // Get the client's IP address
-		// clientIP := c.ClientIP()
-
-		// println(clientIP , serverIP)
-
-		// // Check if the client's IP matches the server's IP
-		// if clientIP != serverIP {
-		// 	c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		// 	c.Abort()
-		// 	return
-		// }
-
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
@@ -142,7 +177,7 @@ func main() {
 		host := c.PostForm("host")
 		user := c.PostForm("user")
 		password := c.PostForm("password")
-		userid := c.PostForm("id")
+		userID := c.PostForm("id")
 		gid := c.PostForm("gid")
 		privateKey, _, err := c.Request.FormFile("privateKey")
 
@@ -161,12 +196,12 @@ func main() {
 		mu.Lock()
 		users[gid] = &User{
 			User:   user,
-			UserID: userid,
-			GID:    gid, // Assuming you have a function to generate unique GIDs
+			UserID: userID,
+			GID:    gid,
 		}
 		mu.Unlock()
 		signer, err := ssh.ParsePrivateKey(privateKeyBytes)
-		// Attempt to connect to the SSH server
+
 		config := &ssh.ClientConfig{
 			User: user,
 			Auth: []ssh.AuthMethod{
@@ -182,7 +217,6 @@ func main() {
 			return
 		}
 
-		// Save users to the file after a successful SSH connection
 		mu.Lock()
 		users[gid].GID = gid
 		sshConnections[users[gid].GID] = &SSHConnection{
@@ -190,7 +224,6 @@ func main() {
 		}
 		mu.Unlock()
 
-		// Save users to the file after adding a new user
 		if err := writeUsersToFile(); err != nil {
 			c.String(http.StatusInternalServerError, "Error writing users to file: %s", err)
 			return
@@ -200,9 +233,9 @@ func main() {
 	})
 
 	r.GET("/connect/:user", func(c *gin.Context) {
-		user := c.Param("user")
+		userID := c.Param("user")
 
-		u, ok := findUserByGID(user)
+		u, ok := findUserByGID(userID)
 
 		if !ok {
 			c.String(http.StatusNotFound, "User not found")
@@ -216,7 +249,7 @@ func main() {
 		}
 
 		muSSH.Lock()
-		_, ok = sshConnections[user]
+		_, ok = sshConnections[userID]
 		if !ok {
 			config := &ssh.ClientConfig{
 				User: u.User,
@@ -234,18 +267,18 @@ func main() {
 				return
 			}
 
-			sshConnections[user] = &SSHConnection{
+			sshConnections[userID] = &SSHConnection{
 				Client: client,
 			}
 		}
 		muSSH.Unlock()
 
-		c.String(http.StatusOK, "Connected to SSH server for user %s", user)
+		c.String(http.StatusOK, "Connected to SSH server for user %s", userID)
 	})
 
 	r.POST("/execute/:user", func(c *gin.Context) {
-		user := c.Param("user")
-		_, ok := findUserByGID(user)
+		userID := c.Param("user")
+		_, ok := findUserByGID(userID)
 
 		if !ok {
 			c.String(http.StatusNotFound, "User not found")
@@ -253,11 +286,11 @@ func main() {
 		}
 
 		muSSH.Lock()
-		conn, ok := sshConnections[user]
+		conn, ok := sshConnections[userID]
 		muSSH.Unlock()
 
 		if !ok {
-			c.String(http.StatusInternalServerError, "SSH connection not found for user %s", user)
+			c.String(http.StatusInternalServerError, "SSH connection not found for user %s", userID)
 			return
 		}
 
@@ -300,26 +333,14 @@ func main() {
 		c.String(http.StatusOK, "")
 	})
 
-	// r.GET("/user/:user", func(c *gin.Context) {
-	// 	user := c.Param("user")
-	// 	_, ok := findUserByGID(user)
-
-	// 	if ok {
-	// 		c.JSON(http.StatusOK, gin.H{"exists": true})
-	// 	} else {
-	// 		c.JSON(http.StatusNotFound, gin.H{"exists": false})
-	// 	}
-	// })
-
 	r.GET("/user/:user", func(c *gin.Context) {
-		user := c.Param("user")
+		userID := c.Param("user")
 
 		muSSH.Lock()
 		defer muSSH.Unlock()
 
-		conn, ok := sshConnections[user]
+		conn, ok := sshConnections[userID]
 		if ok && conn.Client != nil {
-			// The user is connected via SSH
 			c.JSON(http.StatusOK, gin.H{"exists": true})
 		} else {
 			c.JSON(http.StatusNotFound, gin.H{"exists": false})
@@ -327,35 +348,30 @@ func main() {
 	})
 
 	r.GET("/username/:user", func(c *gin.Context) {
-		// Get the user parameter from the request
-		user := c.Param("user")
+		userID := c.Param("user")
 
-		// Read the content of the JSON file
 		plan, err := ioutil.ReadFile(usersFileName)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error reading file"})
 			return
 		}
 
-		// Unmarshal the JSON content into a variable named data
 		var data map[string]interface{}
 		if err := json.Unmarshal(plan, &data); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error unmarshalling JSON"})
 			return
 		}
 
-		
-		userData, ok := data[user]
+		userData, ok := data[userID]
 		if !ok {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 			return
 		}
 
-
-		// Send the user data as a response
 		c.JSON(http.StatusOK, gin.H{"data": userData})
 	})
 
+	r.GET("/terminal/:user", handleTerminalConnection)
 
 	if err := r.Run(":8181"); err != nil {
 		log.Fatal(err)
