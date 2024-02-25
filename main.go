@@ -328,20 +328,19 @@ func main() {
 
 	r.GET("/username/:user", func(c *gin.Context) {
 		user := c.Param("user")
-	
+
 		muSSH.Lock()
 		defer muSSH.Unlock()
-	
+
 		conn, ok := sshConnections[user]
 		if ok && conn.Client != nil {
-	
 			// Now, let's retrieve user information from users.json
 			usersData, err := ioutil.ReadFile("users.json")
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read users data"})
 				return
 			}
-	
+
 			var users []User
 			err = json.Unmarshal(usersData, &users)
 			if err != nil {
@@ -349,24 +348,25 @@ func main() {
 				return
 			}
 
-			fmt.Println(string(usersData))
-	
-			// Find the user in the users slice based on the userID
-			var foundUser User
+			// Find the user in the users slice based on the username
+			var foundUser *User
 			for _, u := range users {
 				if u.User == user {
-					foundUser = u
+					foundUser = &u
 					break
 				}
 			}
-	
-			// Return the found user information
-			c.JSON(http.StatusOK, gin.H{"user": foundUser})
+
+			if foundUser != nil {
+				// Return the found user information
+				c.JSON(http.StatusOK, gin.H{"user": foundUser})
+			} else {
+				c.JSON(http.StatusNotFound, gin.H{"exists": false})
+			}
 		} else {
 			c.JSON(http.StatusNotFound, gin.H{"exists": false})
 		}
 	})
-
 
 
 
