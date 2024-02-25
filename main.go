@@ -72,6 +72,7 @@ func writeUsersToFile() error {
 	var simplifiedUsers = make(map[string]*User)
 	for gid, user := range users {
 		simplifiedUsers[gid] = &User{
+			User: user.User,
 			UserID: user.UserID,
 			GID:    user.GID,
 		}
