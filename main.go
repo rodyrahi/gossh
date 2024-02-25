@@ -82,6 +82,7 @@ func writeUsersToFile() error {
  
 	return nil
  }
+ 
 
 func main() {
 	users = make(map[string]*User)
