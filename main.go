@@ -97,54 +97,55 @@ func writeUsersToFile() error {
 }
 
 func handleTerminalConnection(c *gin.Context) {
-	userID := c.Param("user")
-	_, ok := findUserByGID(userID)
+    userID := c.Param("user")
+    _, ok := findUserByGID(userID)
 
-	if !ok {
-		c.String(http.StatusNotFound, "User not found")
-		return
-	}
+    if !ok {
+        c.String(http.StatusNotFound, "User not found")
+        return
+    }
 
-	muSSH.Lock()
-	conn, ok := sshConnections[userID]
-	muSSH.Unlock()
+    muSSH.Lock()
+    conn, ok := sshConnections[userID]
+    muSSH.Unlock()
 
-	if !ok {
-		c.String(http.StatusInternalServerError, "SSH connection not found for user %s", userID)
-		return
-	}
+    if !ok {
+        c.String(http.StatusInternalServerError, "SSH connection not found for user %s", userID)
+        return
+    }
 
-	ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	defer ws.Close()
+    ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+    if err != nil {
+        log.Println(err)
+        return
+    }
+    defer ws.Close()
 
-	go func() {
-		for {
-			messageType, p, err := ws.ReadMessage()
-			if err != nil {
-				return
-			}
-			if messageType == websocket.TextMessage {
-				conn.Session.Stdout.Write(p)
-			}
-		}
-	}()
+    go func() {
+        for {
+            messageType, p, err := ws.ReadMessage()
+            if err != nil {
+                return
+            }
+            if messageType == websocket.TextMessage {
+                conn.Session.Stdout.Write(p)  // This is line 138
+            }
+        }
+    }()
 
-	buf := make([]byte, 1024)
-	for {
-		n, err := conn.Session.Stdin.Read(buf)
-		if err != nil {
-			return
-		}
-		err = ws.WriteMessage(websocket.TextMessage, buf[:n])
-		if err != nil {
-			return
-		}
-	}
+    buf := make([]byte, 1024)
+    for {
+        n, err := conn.Session.Stdin.Read(buf)
+        if err != nil {
+            return
+        }
+        err = ws.WriteMessage(websocket.TextMessage, buf[:n])
+        if err != nil {
+            return
+        }
+    }
 }
+
 
 func main() {
 	users = make(map[string]*User)
