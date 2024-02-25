@@ -336,7 +336,7 @@ func main() {
 		if ok && conn.Client != nil {
 			// Assuming you want to return some information about the user
 			userInfo := gin.H{
-				"username": user,
+				"username": conn.Client,
 				// Add other user-related information here
 			}
 			c.JSON(http.StatusOK, gin.H{"exists": true, "user": userInfo})
