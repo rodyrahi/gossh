@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os/user"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -32,7 +31,6 @@ var sshConnections map[string]*SSHConnection
 var mu, muSSH, muFile sync.Mutex
 
 const usersFileName = "users.json"
-
 
 func findUserByGID(gid string) (*User, bool) {
 	for _, user := range users {
@@ -60,13 +58,13 @@ func readUsersFromFile() error {
 func writeUsersToFile() error {
 	muFile.Lock()
 	defer muFile.Unlock()
- 
+
 	// Create a simplified structure for writing
 
 	type simpleUser struct {
-		User       string
-		UserID     string
-		GID        string // Add group ID
+		User   string
+		UserID string
+		GID    string // Add group ID
 	}
 
 	var simplifiedUsers = make(map[string]*simpleUser)
@@ -79,25 +77,22 @@ func writeUsersToFile() error {
 			GID:    user.GID,
 		}
 		// Add the copied user to the simplifiedUsers map
-		
+
 		simplifiedUsers[gid] = copiedUser
 	}
 
-
-
 	content, err := json.MarshalIndent(simplifiedUsers, "", "  ")
 	if err != nil {
-	   return err
+		return err
 	}
- 
+
 	err = ioutil.WriteFile(usersFileName, content, 0644)
 	if err != nil {
-	   return err
+		return err
 	}
- 
+
 	return nil
- }
- 
+}
 
 func main() {
 	users = make(map[string]*User)
@@ -165,7 +160,7 @@ func main() {
 
 		mu.Lock()
 		users[gid] = &User{
-			User: user,
+			User:   user,
 			UserID: userid,
 			GID:    gid, // Assuming you have a function to generate unique GIDs
 		}
@@ -316,14 +311,12 @@ func main() {
 	// 	}
 	// })
 
-
-
 	r.GET("/user/:user", func(c *gin.Context) {
 		user := c.Param("user")
-	
+
 		muSSH.Lock()
 		defer muSSH.Unlock()
-	
+
 		conn, ok := sshConnections[user]
 		if ok && conn.Client != nil {
 			// The user is connected via SSH
@@ -332,7 +325,7 @@ func main() {
 			c.JSON(http.StatusNotFound, gin.H{"exists": false})
 		}
 	})
-	
+
 	r.GET("/username/:user", func(c *gin.Context) {
 		user := c.Param("user")
 	
@@ -341,12 +334,39 @@ func main() {
 	
 		conn, ok := sshConnections[user]
 		if ok && conn.Client != nil {
-			// The user is connected via SSH
-			c.JSON(http.StatusOK, gin.H{"exists": true, "user": user})
+	
+			// Now, let's retrieve user information from users.json
+			usersData, err := ioutil.ReadFile("users.json")
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read users data"})
+				return
+			}
+	
+			var users []User
+			err = json.Unmarshal(usersData, &users)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse users data"})
+				return
+			}
+	
+			// Find the user in the users slice based on the userID
+			var foundUser User
+			for _, u := range users {
+				if u.User == user {
+					foundUser = u
+					break
+				}
+			}
+	
+			// Return the found user information
+			c.JSON(http.StatusOK, gin.H{"user": foundUser})
 		} else {
 			c.JSON(http.StatusNotFound, gin.H{"exists": false})
 		}
 	})
+
+
+
 
 	if err := r.Run(":8181"); err != nil {
 		log.Fatal(err)
