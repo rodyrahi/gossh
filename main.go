@@ -71,10 +71,10 @@ func writeUsersToFile() error {
 	// Create a simplified structure for writing
 	var simplifiedUsers = make(map[string]*User)
 	for gid, user := range users {
-		simplifiedUsers[gid] = &User{
+		simplifiedUsers[user.User] = &User{
 			User:   user.User,
 			UserID: user.UserID,
-			GID:    user.GID,
+			GID:    gid,
 		}
 	}
 
