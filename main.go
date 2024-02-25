@@ -61,25 +61,28 @@ func writeUsersToFile() error {
 	defer muFile.Unlock()
  
 	// Create a simplified structure for writing
-	var simplifiedUsers = make(map[string]*User)
+
+	type simpleUser struct {
+		User       string
+		UserID     string
+		GID        string // Add group ID
+	}
+
+	var simplifiedUsers = make(map[string]*simpleUser)
 
 	for gid, user := range users {
 		// Create a copy of the User object
-		copiedUser := &User{
+		copiedUser := &simpleUser{
 			User:   user.User,
 			UserID: user.UserID,
 			GID:    user.GID,
 		}
-	
-	
 		// Add the copied user to the simplifiedUsers map
 		
 		simplifiedUsers[gid] = copiedUser
 	}
 
-	delete(simplifiedUsers , "Password")
-	delete(simplifiedUsers , "Host")
-	delete(simplifiedUsers , "PrivateKey")
+
 
 	content, err := json.MarshalIndent(simplifiedUsers, "", "  ")
 	if err != nil {
