@@ -347,7 +347,7 @@ func main() {
 		// Assuming that data is a map[string]interface{}, you can access values like this:
 		userData, ok := data.(map[string]interface{})[user].(string)
 		if !ok {
-			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found" , "data":data})
 			return
 		}
 
