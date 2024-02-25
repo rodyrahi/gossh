@@ -326,33 +326,33 @@ func main() {
 	r.GET("/terminal/:user", func(c *gin.Context) {
 		userID := c.Param("user")
 		_, ok := findUserByGID(userID)
-	
+
 		if !ok {
 			c.String(http.StatusNotFound, "User not found")
 			return
 		}
-	
+
 		muSSH.Lock()
 		conn, ok := sshConnections[userID]
 		muSSH.Unlock()
-	
+
 		if !ok {
 			c.String(http.StatusInternalServerError, "SSH connection not found for user %s", userID)
 			return
 		}
-	
+
 		if conn.Session == nil {
 			c.String(http.StatusInternalServerError, "SSH session not established for user %s", userID)
 			return
 		}
-	
+
 		ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
 			log.Println(err)
 			return
 		}
 		defer ws.Close()
-	
+
 		// WebSocket to SSH
 		go func() {
 			defer ws.Close()
@@ -371,7 +371,7 @@ func main() {
 				}
 			}
 		}()
-	
+
 		// SSH to WebSocket
 		buf := make([]byte, 1024)
 		for {
@@ -388,7 +388,6 @@ func main() {
 		}
 	})
 	
-
 	if err := r.Run(":8181"); err != nil {
 		log.Fatal(err)
 	}
