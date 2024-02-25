@@ -121,17 +121,22 @@ func handleTerminalConnection(c *gin.Context) {
     }
     defer ws.Close()
 
-    go func() {
-        for {
-            messageType, p, err := ws.ReadMessage()
-            if err != nil {
-                return
-            }
-            if messageType == websocket.TextMessage {
-                conn.Session.Stdout.Write(p)  // This is line 138
-            }
-        }
-    }()
+	go func() {
+		for {
+			messageType, p, err := ws.ReadMessage()
+			if err != nil {
+				return
+			}
+			if messageType == websocket.TextMessage {
+				if conn.Session != nil {
+					conn.Session.Stdout.Write(p)
+				} else {
+					log.Println("Session is nil.")
+				}
+			}
+		}
+	}()
+	
 
     buf := make([]byte, 1024)
     for {
