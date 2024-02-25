@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"sync"
 
 	"github.com/gin-gonic/gin"
