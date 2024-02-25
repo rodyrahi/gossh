@@ -327,22 +327,32 @@ func main() {
 	})
 
 	r.GET("/username/:user", func(c *gin.Context) {
+		// Get the user parameter from the request
 		user := c.Param("user")
 
-		muSSH.Lock()
-		defer muSSH.Unlock()
-
-		conn, ok := sshConnections[user]
-		if ok && conn.Client != nil {
-			// Assuming you want to return some information about the user
-			userInfo := gin.H{
-				"username": conn.Client,
-				// Add other user-related information here
-			}
-			c.JSON(http.StatusOK, gin.H{"exists": true, "user": userInfo})
-		} else {
-			c.JSON(http.StatusNotFound, gin.H{"exists": false})
+		// Read the content of the JSON file
+		plan, err := ioutil.ReadFile(usersFileName)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error reading file"})
+			return
 		}
+
+		// Unmarshal the JSON content into a variable named data
+		var data interface{}
+		if err := json.Unmarshal(plan, &data); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error unmarshalling JSON"})
+			return
+		}
+
+		// Assuming that data is a map[string]interface{}, you can access values like this:
+		userData, ok := data.(map[string]interface{})[user].(string)
+		if !ok {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+
+		// Send the user data as a response
+		c.JSON(http.StatusOK, gin.H{"user": user, "data": userData})
 	})
 
 
