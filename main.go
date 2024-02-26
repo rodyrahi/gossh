@@ -104,68 +104,47 @@ func writeUsersToFile() error {
 
 // handleTerminal handles the WebSocket-based terminal.
 func handleTerminal(c *gin.Context) {
-    userID := c.Param("user")
-    _, ok := findUserByGID(userID)
-    if !ok {
-        c.String(http.StatusNotFound, "User not found")
-        return
-    }
+	userID := c.Param("user")
+	_, ok := findUserByGID(userID)
+	if !ok {
+		c.String(http.StatusNotFound, "User not found")
+		return
+	}
 
-    muSSH.Lock()
-    conn, ok := sshConnections[userID]
-    muSSH.Unlock()
+	ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer ws.Close()
 
-    if !ok {
-        c.String(http.StatusInternalServerError, "SSH connection not found for user %s", userID)
-        return
-    }
+	// Send a welcome message to the client
+	if err := ws.WriteMessage(websocket.TextMessage, []byte("Connection established. Welcome!")); err != nil {
+		log.Println("Error sending welcome message:", err)
+		return
+	}
 
-    if conn.Session == nil {
-        c.String(http.StatusInternalServerError, "SSH session not established for user %s", userID)
-        return
-    }
+	// You can add more logic here to handle incoming WebSocket messages
 
-    ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-    if err != nil {
-        log.Println(err)
-        return
-    }
-    defer ws.Close()
+	// In this example, we'll just log the received messages
+	for {
+		messageType, p, err := ws.ReadMessage()
+		if err != nil {
+			log.Println("Error reading message:", err)
+			return
+		}
 
-    // Attach WebSocket to SSH session (stdin)
-    stdin, err := conn.Session.StdinPipe()
-    if err != nil {
-        log.Println(err)
-        return
-    }
+		log.Printf("Received message: %s\n", p)
 
-    // Attach SSH session to WebSocket (stdout)
-    stdout, err := conn.Session.StdoutPipe()
-    if err != nil {
-        log.Println(err)
-        return
-    }
-
-	stdoutCloser := stdout.(io.Closer)
-    // Bidirectional copy between WebSocket and SSH session
-    go func() {
-        defer ws.Close()
-        defer stdin.Close()
-		defer stdoutCloser.Close()
-
-        // Copy from WebSocket to SSH session (stdin)
-        go func() {
-            if _, err := io.Copy(stdin, ws.UnderlyingConn()); err != nil {
-                log.Println("WebSocket to SSH copy error:", err)
-            }
-        }()
-
-        // Copy from SSH session (stdout) to WebSocket
-        if _, err := io.Copy(ws.UnderlyingConn(), stdout); err != nil {
-            log.Println("SSH to WebSocket copy error:", err)
-        }
-    }()
+		// You can add more logic here to handle different message types
+		// For simplicity, we'll just log the received message type and content
+		if err := ws.WriteMessage(messageType, p); err != nil {
+			log.Println("Error sending message:", err)
+			return
+		}
+	}
 }
+
 
 
 func main() {
@@ -392,12 +371,6 @@ func main() {
 
 		c.JSON(http.StatusOK, gin.H{"data": userData})
 	})
-
-// ...
-
-
-
-
 
 
 
