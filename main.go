@@ -161,6 +161,10 @@ func handleTerminal(c *gin.Context) {
             for {
                 _, msg, err := ws.ReadMessage()
                 if err != nil {
+                    if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+                        // WebSocket connection closed, break out of the loop
+                        break
+                    }
                     log.Println("WebSocket read error:", err)
                     return
                 }
@@ -177,6 +181,10 @@ func handleTerminal(c *gin.Context) {
                 buf := make([]byte, 4096)
                 n, err := stdout.Read(buf)
                 if err != nil {
+                    if err == io.EOF {
+                        // SSH session closed, break out of the loop
+                        break
+                    }
                     log.Println("SSH to WebSocket copy error:", err)
                     return
                 }
