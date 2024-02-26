@@ -136,6 +136,8 @@ func handleTerminal(c *gin.Context) {
     }
     defer ws.Close()
 
+    muWebSocket := sync.Mutex{} // Add a mutex for WebSocket operations
+
     // Attach WebSocket to SSH session (stdin)
     stdin, err := conn.Session.StdinPipe()
     if err != nil {
@@ -158,12 +160,15 @@ func handleTerminal(c *gin.Context) {
 
         // Copy from WebSocket to SSH session (stdin)
         go func() {
+            defer muWebSocket.Unlock()
+            muWebSocket.Lock()
+
             for {
                 messageType, p, err := ws.ReadMessage()
                 if err != nil {
                     if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
                         // WebSocket connection closed, break out of the loop
-                        break
+                        return
                     }
                     log.Println("WebSocket read error:", err)
                     return
@@ -181,13 +186,16 @@ func handleTerminal(c *gin.Context) {
 
         // Copy from SSH session (stdout) to WebSocket
         go func() {
+            defer muWebSocket.Unlock()
+            muWebSocket.Lock()
+
             for {
                 buf := make([]byte, 4096)
                 n, err := stdout.Read(buf)
                 if err != nil {
                     if err == io.EOF {
                         // SSH session closed, break out of the loop
-                        break
+                        return
                     }
                     log.Println("SSH to WebSocket copy error:", err)
                     return
