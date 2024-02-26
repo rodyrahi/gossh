@@ -139,13 +139,6 @@ func handleTerminal(c *gin.Context) {
         return
     }
 
-    go func() {
-        defer ws.Close()
-        if _, err := io.Copy(stdin, ws.UnderlyingConn()); err != nil {
-            log.Println(err)
-        }
-    }()
-
     // Attach SSH session to WebSocket (stdout)
     stdout, err := conn.Session.StdoutPipe()
     if err != nil {
@@ -153,10 +146,23 @@ func handleTerminal(c *gin.Context) {
         return
     }
 
+	stdoutCloser := stdout.(io.Closer)
+    // Bidirectional copy between WebSocket and SSH session
     go func() {
         defer ws.Close()
+        defer stdin.Close()
+		defer stdoutCloser.Close()
+
+        // Copy from WebSocket to SSH session (stdin)
+        go func() {
+            if _, err := io.Copy(stdin, ws.UnderlyingConn()); err != nil {
+                log.Println("WebSocket to SSH copy error:", err)
+            }
+        }()
+
+        // Copy from SSH session (stdout) to WebSocket
         if _, err := io.Copy(ws.UnderlyingConn(), stdout); err != nil {
-            log.Println(err)
+            log.Println("SSH to WebSocket copy error:", err)
         }
     }()
 }
