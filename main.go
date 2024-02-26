@@ -136,8 +136,6 @@ func handleTerminal(c *gin.Context) {
     }
     defer ws.Close()
 
-    muWebSocket := sync.Mutex{} // Add a mutex for WebSocket operations
-
     // Attach WebSocket to SSH session (stdin)
     stdin, err := conn.Session.StdinPipe()
     if err != nil {
@@ -152,61 +150,61 @@ func handleTerminal(c *gin.Context) {
         return
     }
 
+    closeChannel := make(chan struct{}) // Channel to signal closure
+
     // Bidirectional copy between WebSocket and SSH session
     go func() {
+        defer close(closeChannel) // Signal closure when the function exits
         defer ws.Close()
         defer stdin.Close()
         defer conn.Session.Close() // Close SSH session when WebSocket is closed
 
         // Copy from WebSocket to SSH session (stdin)
-        go func() {
-            defer muWebSocket.Unlock()
-            muWebSocket.Lock()
-
-            for {
-                messageType, p, err := ws.ReadMessage()
-                if err != nil {
-                    if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-                        // WebSocket connection closed, break out of the loop
-                        return
-                    }
-                    log.Println("WebSocket read error:", err)
+        for {
+            messageType, p, err := ws.ReadMessage()
+            if err != nil {
+                if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+                    // WebSocket connection closed, break out of the loop
                     return
                 }
-                if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
-                    log.Println("Unsupported WebSocket message type")
-                    return
-                }
-                if _, err := stdin.Write(p); err != nil {
-                    log.Println("WebSocket to SSH copy error:", err)
-                    return
-                }
+                log.Println("WebSocket read error:", err)
+                return
             }
-        }()
-
-        // Copy from SSH session (stdout) to WebSocket
-        go func() {
-            defer muWebSocket.Unlock()
-            muWebSocket.Lock()
-
-            for {
-                buf := make([]byte, 4096)
-                n, err := stdout.Read(buf)
-                if err != nil {
-                    if err == io.EOF {
-                        // SSH session closed, break out of the loop
-                        return
-                    }
-                    log.Println("SSH to WebSocket copy error:", err)
-                    return
-                }
-                if err := ws.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
-                    log.Println("SSH to WebSocket write error:", err)
-                    return
-                }
+            if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
+                log.Println("Unsupported WebSocket message type")
+                return
             }
-        }()
+            if _, err := stdin.Write(p); err != nil {
+                log.Println("WebSocket to SSH copy error:", err)
+                return
+            }
+        }
     }()
+
+    // Copy from SSH session (stdout) to WebSocket
+    go func() {
+        defer close(closeChannel) // Signal closure when the function exits
+
+        for {
+            buf := make([]byte, 4096)
+            n, err := stdout.Read(buf)
+            if err != nil {
+                if err == io.EOF {
+                    // SSH session closed, break out of the loop
+                    return
+                }
+                log.Println("SSH to WebSocket copy error:", err)
+                return
+            }
+            if err := ws.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
+                log.Println("SSH to WebSocket write error:", err)
+                return
+            }
+        }
+    }()
+
+    // Wait for closure from either side
+    <-closeChannel
 }
 
 
