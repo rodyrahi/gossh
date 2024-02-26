@@ -10,7 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
-
+	"io"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
@@ -98,6 +98,69 @@ func writeUsersToFile() error {
 
 	return nil
 }
+
+
+
+
+// handleTerminal handles the WebSocket-based terminal.
+func handleTerminal(c *gin.Context) {
+    userID := c.Param("user")
+    _, ok := findUserByGID(userID)
+    if !ok {
+        c.String(http.StatusNotFound, "User not found")
+        return
+    }
+
+    muSSH.Lock()
+    conn, ok := sshConnections[userID]
+    muSSH.Unlock()
+
+    if !ok {
+        c.String(http.StatusInternalServerError, "SSH connection not found for user %s", userID)
+        return
+    }
+
+    if conn.Session == nil {
+        c.String(http.StatusInternalServerError, "SSH session not established for user %s", userID)
+        return
+    }
+
+    ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+    if err != nil {
+        log.Println(err)
+        return
+    }
+    defer ws.Close()
+
+    // Attach WebSocket to SSH session (stdin)
+    stdin, err := conn.Session.StdinPipe()
+    if err != nil {
+        log.Println(err)
+        return
+    }
+
+    go func() {
+        defer ws.Close()
+        if _, err := io.Copy(stdin, ws.UnderlyingConn()); err != nil {
+            log.Println(err)
+        }
+    }()
+
+    // Attach SSH session to WebSocket (stdout)
+    stdout, err := conn.Session.StdoutPipe()
+    if err != nil {
+        log.Println(err)
+        return
+    }
+
+    go func() {
+        defer ws.Close()
+        if _, err := io.Copy(ws.UnderlyingConn(), stdout); err != nil {
+            log.Println(err)
+        }
+    }()
+}
+
 
 func main() {
 	users = make(map[string]*User)
@@ -324,70 +387,17 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"data": userData})
 	})
 
-	r.GET("/terminal/:user", func(c *gin.Context) {
-		userID := c.Param("user")
-		_, ok := findUserByGID(userID)
+// ...
 
-		if !ok {
-			c.String(http.StatusNotFound, "User not found")
-			return
-		}
 
-		muSSH.Lock()
-		conn, ok := sshConnections[userID]
-		muSSH.Unlock()
 
-		if !ok {
-			c.String(http.StatusInternalServerError, "SSH connection not found for user %s", userID)
-			return
-		}
 
-		if conn.Session == nil {
-			c.String(http.StatusInternalServerError, "SSH session not established for user %s", userID)
-			return
-		}
 
-		ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		defer ws.Close()
 
-		// WebSocket to SSH
-		go func() {
-			defer ws.Close()
-			for {
-				messageType, p, err := ws.ReadMessage()
-				if err != nil {
-					log.Println(err)
-					return
-				}
-				if messageType == websocket.TextMessage {
-					if conn.Session != nil {
-						conn.Session.Stdout.Write(p)
-					} else {
-						log.Println("Session is nil.")
-					}
-				}
-			}
-		}()
 
-		// SSH to WebSocket
-		buf := make([]byte, 1024)
-		for {
-			n, err := conn.Session.Stdin.Read(buf)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-			err = ws.WriteMessage(websocket.TextMessage, buf[:n])
-			if err != nil {
-				log.Println(err)
-				return
-			}
-		}
-	})
+
+
+	r.GET("/terminal/:user", handleTerminal)
 
 	// Graceful shutdown
 	server := &http.Server{
