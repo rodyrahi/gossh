@@ -159,7 +159,7 @@ func handleTerminal(c *gin.Context) {
         // Copy from WebSocket to SSH session (stdin)
         go func() {
             for {
-                _, msg, err := ws.ReadMessage()
+                messageType, p, err := ws.ReadMessage()
                 if err != nil {
                     if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
                         // WebSocket connection closed, break out of the loop
@@ -168,7 +168,11 @@ func handleTerminal(c *gin.Context) {
                     log.Println("WebSocket read error:", err)
                     return
                 }
-                if _, err := stdin.Write(msg); err != nil {
+                if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
+                    log.Println("Unsupported WebSocket message type")
+                    return
+                }
+                if _, err := stdin.Write(p); err != nil {
                     log.Println("WebSocket to SSH copy error:", err)
                     return
                 }
