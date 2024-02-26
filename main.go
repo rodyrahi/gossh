@@ -415,7 +415,7 @@ func main() {
 	r.POST("/execute/:user", handleExecute)
 	r.GET("/user/:user", handleUserExistence)
 	r.GET("/username/:user", handleUsernameInfo)
-	r.POST("/execute/:user", handleExecuteWebSocket)
+	r.POST("/terminal/:user", handleExecuteWebSocket)
 
 	// Graceful shutdown
 	server := &http.Server{
