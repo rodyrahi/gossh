@@ -10,7 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
-
+	// "io"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
@@ -51,6 +51,92 @@ func findUserByGID(gid string) (*User, bool) {
 	}
 	return nil, false
 }
+
+func handleExecuteWebSocket(c *gin.Context) {
+	userID := c.Param("user")
+	_, ok := findUserByGID(userID)
+
+	if !ok {
+		c.String(http.StatusNotFound, "User not found")
+		return
+	}
+
+	conn, ok := sshConnections[userID]
+	if !ok {
+		c.String(http.StatusInternalServerError, "SSH connection not found for user %s", userID)
+		return
+	}
+
+	ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Error upgrading to WebSocket: %s", err)
+		return
+	}
+	defer ws.Close()
+
+	session, err := conn.Client.NewSession()
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Error creating SSH session: %s", err)
+		return
+	}
+	defer session.Close()
+
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Error obtaining stdin: %s", err)
+		return
+	}
+
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Error obtaining stdout: %s", err)
+		return
+	}
+
+	go func() {
+		defer ws.Close()
+
+		// Read from SSH session stdout and write to WebSocket
+		buf := make([]byte, 1024)
+		for {
+			n, err := stdout.Read(buf)
+			if err != nil {
+				break
+			}
+			if err := ws.WriteMessage(websocket.TextMessage, buf[:n]); err != nil {
+				break
+			}
+		}
+
+		// Read from WebSocket and write to SSH session stdin
+		for {
+			_, msg, err := ws.ReadMessage()
+			if err != nil {
+				break
+			}
+			stdin.Write(msg)
+		}
+	}()
+
+	// Start the command
+	command := "/bin/bash"
+	if err := session.Start(command); err != nil {
+		c.String(http.StatusInternalServerError, "Error starting command: %s", err)
+		return
+	}
+
+	// Wait for the command to finish
+	if err := session.Wait(); err != nil {
+		c.String(http.StatusInternalServerError, "Error waiting for command to finish: %s", err)
+		return
+	}
+}
+
+
+
+
+
+
 
 func readUsersFromFile() error {
 	muFile.Lock()
@@ -329,6 +415,7 @@ func main() {
 	r.POST("/execute/:user", handleExecute)
 	r.GET("/user/:user", handleUserExistence)
 	r.GET("/username/:user", handleUsernameInfo)
+	r.POST("/execute/:user", handleExecuteWebSocket)
 
 	// Graceful shutdown
 	server := &http.Server{
